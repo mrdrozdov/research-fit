@@ -1,6 +1,7 @@
 import argparse
 import collections
 import json
+from multiprocess import Pool
 
 from tqdm import tqdm
 import spacy
@@ -10,7 +11,9 @@ import pytextrank
 parser = argparse.ArgumentParser()
 parser.add_argument('--mode', default='abstract', choices=('title', 'abstract'))
 parser.add_argument('--path', default='./data/tmp/pubmed_baseline.jsonl', type=str)
-parser.add_argument('--limit', default=None, type=int)
+parser.add_argument('--maxdocs', default=None, type=int)
+parser.add_argument('--maxphrases_per_doc', default=10, type=int)
+parser.add_argument('--nproc', default=4, type=int)
 options = parser.parse_args()
 
 
@@ -24,7 +27,7 @@ with open(options.path) as f:
             corpus.append(d['title'])
         elif options.mode == 'abstract':
             corpus.append(d['abstract'])
-        if options.limit is not None and len(corpus) == options.limit:
+        if options.maxdocs is not None and len(corpus) == options.maxdocs:
             break
 
 # load a spaCy model, depending on language, scale, etc.
@@ -35,25 +38,29 @@ tr = pytextrank.TextRank()
 nlp.add_pipe(tr.PipelineComponent, name="textrank", last=True)
 
 # Read corpus and extract key phrases.
+def worker(text):
+    doc = nlp(text)
+    phrases = [p.text for p in doc._.phrases]
+    num_words = len(doc)
+    return phrases, num_words
+
+p = Pool(options.nproc)
 total_words = 0
 vocab = collections.Counter()
-for text in tqdm(corpus, desc='textrank'):
-    doc = nlp(text)
-
+for phrases, num_words in tqdm(p.imap(worker, corpus)):
     # Note: This count include punctuation as well as words.
-    total_words += len(doc)
+    total_words += num_words
 
     # examine the top-ranked phrases in the document
     seen = 0
-    for i, p in enumerate(doc._.phrases):
-        if len(p.text.split()) == 1:
+    for i, p in enumerate(phrases):
+        if len(p.split()) == 1:
             continue
         # print("{:.3f} {}".format(p.rank, p.text))
-        vocab[p.text] += 1
+        vocab[p] += 1
         seen += 1
-        if seen == 10:
+        if options.maxphrases_per_doc > 0 and seen == options.maxphrases_per_doc:
             break
-    # print('')
 
 for k in sorted(vocab.keys()):
     print('{} {}'.format(k, vocab[k]))

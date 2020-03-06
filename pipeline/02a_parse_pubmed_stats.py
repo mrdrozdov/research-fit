@@ -19,7 +19,5 @@ for filename in tqdm(sorted(os.listdir(read_from))):
         if len(d['abstract']) > 0:
             abstract_counter['has_abstract'] += 1
         abstract_counter['total'] += 1
-        import ipdb; ipdb.set_trace()
-        pass
 
     print(abstract_counter)

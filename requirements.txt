@@ -1,3 +1,4 @@
+multiprocess
 pytextrank
 spacy
 tqdm
