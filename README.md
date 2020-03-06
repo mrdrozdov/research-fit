@@ -6,6 +6,7 @@ Learn about research.
 
 ```
 pip install -r requirements.txt
+bash postinstall.sh
 ```
 
 ## Pipeline
